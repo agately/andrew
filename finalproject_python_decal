@@ -1,0 +1,144 @@
+import numpy as np
+from scipy.integrate import solve_ivp
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+from matplotlib.animation import PillowWriter
+
+
+g = 9.81
+# g = 1.61
+
+def double_pendulum_ode(t, y):
+    theta1, omega1, theta2, omega2 = y
+
+    # Lets set lengths and masses equal to 1 for conveince 
+    L1 = L2 = 1.0
+    m1 = m2 = 1.0
+
+    # Angle difference
+    delta = theta1 - theta2
+    c = np.cos(delta)
+    s = np.sin(delta)
+
+    # First derivatives of angles
+    theta1dot = omega1
+    theta2dot = omega2
+
+    denom = m1 + m2 * s**2
+
+    omega1dot = (m2 * g * np.sin(theta2) * c
+                 - m2 * s * (L1 * omega1**2 * c + L2 * omega2**2)
+                 - (m1 + m2) * g * np.sin(theta1)) / (L1 * denom)
+
+    omega2dot = (((m1 + m2) * (L1 * omega1**2 * s
+                               - g * np.sin(theta2)
+                               + g * np.sin(theta1) * c)
+                  + m2 * L2 * omega2**2 * s * c)
+                 / (L2 * denom))
+
+    return [theta1dot, omega1dot, theta2dot, omega2dot]
+
+
+
+# Initial condition
+theta1_0 = pi/2 # initial angle of first mass
+theta2_0 = pi/2 # initial angle of second mass
+omega1_0 = 0.0         # initial angular velocity of first mass
+omega2_0 = 0.0         # initial angular velocity of second mass
+
+
+y0 = [theta1_0, omega1_0, theta2_0, omega2_0] # full intial conditions 
+
+
+
+# Time grid
+t_start = 0.0
+t_end   = 20.0          
+fps     = 60
+
+t_eval = np.linspace(t_start, t_end, int((t_end - t_start) * fps))
+
+
+# Numerically solve the ODE
+
+sol = solve_ivp(
+    double_pendulum_ode,
+    [t_start, t_end],
+    y0,
+    t_eval=t_eval,
+    rtol=1e-9,
+    atol=1e-9,
+    max_step=0.01,
+)
+
+theta1 = sol.y[0]
+theta2 = sol.y[2]
+
+
+# Convert to Cartesian coords
+x1 = np.sin(theta1)
+y1 = -np.cos(theta1)
+
+x2 = x1 + np.sin(theta2)
+y2 = y1 - np.cos(theta2)
+
+
+# Animation setup
+
+fig, ax = plt.subplots()
+ax.set_aspect('equal')
+ax.set_xlim(-2.2, 2.2)
+ax.set_ylim(-2.2, 2.2)
+
+line, = ax.plot([], [], 'o-', lw=2) 
+time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
+
+def init():
+    line.set_data([], [])
+    time_text.set_text('')
+    return line, time_text
+
+def update(i):
+    this_x = [0.0, x1[i], x2[i]]
+    this_y = [0.0, y1[i], y2[i]]
+
+    line.set_data(this_x, this_y)
+    time_text.set_text(f't = {t_eval[i]:.2f} s')
+    return line, time_text
+
+ani = FuncAnimation(fig, update,
+                    frames=len(t_eval),
+                    init_func=init,
+                    blit=True,
+                    interval=1000 / fps)
+
+plt.show()
+
+
+
+
+# =========================================================
+# theta1, omega1, theta2, omega2 = sol.y
+
+# delta = theta2 - theta1
+
+# # Positions
+# x1 = np.sin(theta1);  y1 = -np.cos(theta1)
+# x2 = x1 + np.sin(theta2);  y2 = y1 - np.cos(theta2)
+
+# # Speeds squared
+# v1_sq = omega1**2
+# v2_sq = omega1**2 + omega2**2 + 2*omega1*omega2*np.cos(delta)
+
+# T = 0.5*(v1_sq + v2_sq)              # kinetic
+# V = g*(y1 + y2)                      # potential (up to constant)
+# E = T + V
+
+# plt.figure()
+# plt.plot(sol.t, E - E[0])
+# plt.xlabel("t")
+# plt.ylabel("Energy drift E(t) - E(0)")
+# plt.show()
+
+# ani.save("double_pendulum.mp4", fps=60, dpi=200)
